@@ -1,0 +1,138 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[left=2.5cm,top=2.5cm,right=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage[font=footnotesize,labelfont=bf]{caption}
+\usepackage{enumitem}
+
+% \usepackage{amsmath,amsthm} 
+% \usepackage{newtxtext}
+% \usepackage{newtxmath}
+
+%\usepackage[p,osf]{scholax}
+%T1 and textcomp are loaded by package. Change that here, if you want
+%load sans and typewriter packages here, if needed
+%\usepackage{amsmath,amsthm}% must be loaded before newtxmath
+%amssymb should not be loaded
+%\usepackage[scaled=1.075,ncf,vvarbb]{newtxmath}% need to scale up math package
+%vvarbb selects the STIX version of blackboard bold.
+
+% \usepackage[T1]{fontenc}
+% \usepackage{stix}
+
+\usepackage{kpfonts}
+\usepackage[T1]{fontenc}
+
+\setlength{\parskip}{1ex}
+\setlength{\parindent}{1.4em}
+
+% Title Page
+\title{An Idealized Case with the Barotropic Vorticity Equation}
+\author{Xiaoming Shi \& Yongquan Qu}
+
+\begin{document}
+\maketitle
+
+\section*{Governing Equations}
+
+The barotropic vorticity equation (BVE) describes the conservation of vorticity in a two dimensional flow,
+\begin{equation}
+ \frac{\partial \zeta}{\partial t} + J(\psi, \zeta) = -\nu\nabla^4{\zeta} + F
+\end{equation}
+where $\zeta= \nabla^2\psi$ is the vorticity, $\psi$ is the streamfunction, $J(\psi, \zeta) = \psi_x\zeta_y - \psi_y\zeta_x = v\zeta_y + u\zeta_x$ is the advection of vorticity. The two terms on the right-hand side are hyper-diffusion and external forcing. 
+
+In the numercal solver, we include implicit diffusion by using a filter which tapers down the energy of high-wavenumber modes. The tapering function is applied in spectral space and starts with unity at $2k_{\text{max}}/3$, where $k_{\text{max}}$ is the highest resolved wavenumber. It becomes $10^{-15}$ at $k_{\text{max}}$ and thereby avoid the accumulation of energy at the Nyquist frequency. To ensure numerical stability, this filter is always applied in our simulations regardless of resolution.  
+
+Because of the use of the implicit filter, we do \textit{not} actually include the hyper-diffusion term in our numerical simulations. In the our low-resolution ($64\times64$) simulation, having hyper-diffusion can help remove numerical oscillation due to insufficient resolution, but it also damage the predicting power of the model. We intends to leave the task of removing numerical noise to the machine learning-based parameterization. 
+
+The forcing term ($F$) determines the characteristics of the flow. In our simulations, the forcing $F$ is periodic in time and $y$ direction. When it is active, it re-establish the strong shear zone in the middle of domain and provides sufficient condition for the Kelvin–Helmholtz instability. 
+\begin{figure}
+ \begin{center}
+ \includegraphics[scale=0.25]{zetaIC.png}
+ \includegraphics[scale=0.25]{psiIC.png}
+ \includegraphics[scale=0.25]{uIC.png}
+ \caption{Initial condition of vorticity (left), streamfunction (middle), and zonal wind $u$ (right). For $u$, blue color indicates negative speed and red indicates positive. The shear zone in the middle is $\pi/32$ and the change in $u$ across it is from $+1$ to $-1$. The domain is $2\pi\times 2\pi$.}
+\end{center}
+\end{figure}
+
+The forcing term is configured as a damping term to the streamfunction. It can be conceptually written as $F_{\psi}$ in the following equation,
+\begin{equation}
+ \frac{\partial \psi}{\partial t} = \mathcal{G}(\psi) + F_{\psi}
+\end{equation}
+where $\mathcal{G}(\psi)$ is the grid-resolved tendency of the streamfunction and 
+\begin{equation}
+ F_{\psi} = -\alpha (\psi - \psi_0) = -\frac{\psi - \psi_0}{\tau}
+\end{equation}
+Here $\tau = \alpha^{-1}$ is the e-folding time scale of the deviation of the streamfunction from the initial condition $\psi_0$. The damping coefficient
+\begin{equation}
+ \alpha = \frac12 \left(\frac{1 - \cos(\pi\,t/5)}{2}\right)^4 \left[\frac{24}{25}\left(\frac{1 - \cos(y)}{2} \right)^4 +\frac{1}{25}\right] 
+\end{equation}
+which makes the damping term have a period of 10 in time and 24 times larger in the middle ($y=0$) than in the north/south edge ($y=0,\,2\pi$ ).
+
+After obtaining the forcing $F_{\psi}$, we can convert it to a forcing to the vorticity in spectral space. Because $\nabla^2 \hat{\psi}_k = -k^2\hat{\psi}_k = \hat{\zeta}_k$, where hat indicates a Fourier mode coefficient for wavenumber $k$, the forcing to a vorticity mode therefore is 
+\begin{equation}
+ \hat{F}_k = -k^2 \hat{F}_{\psi,k}
+\end{equation}
+This shows the advantage of computing the forcing as a function of streamfunction. Though in Equation (2) and (3) the forcing is a linear term, in the spectral space of vorticity, the forcing is stronger for high wavenumbers (small scales) than for low wavenumbers. Then pre-existing vorticies are not completely wiped out by the forcing when it is active and are allowed to interact with  emerging small vorticies. 
+
+The reason why we want to adopt this forcing is that it provides a better analogy to numerical weather prediction (NWP). If we adopts some kind of Kolmogorov forcing that produces high-Reynolds number flow with fully developed turbulence. There is minimal predictability in the flow. The real atmosphere is different. It behaves like waves in the absence of instability and therefore is of significant predictability. However, baroclinic, convective, or other kinds of instability may occur at some time and location, and they exhibit quasi-peridic behaviors (diurnal cycle, baroclinic eddy life cycle, seasonal cycle, etc.).
+
+\begin{figure}[h]
+ \begin{center}
+  \includegraphics[scale=0.23]{t102.5.png}
+  \includegraphics[scale=0.23]{t105.png}
+  \includegraphics[scale=0.23]{t107.5.png}
+  \includegraphics[scale=0.23]{t110.png}  
+  \caption{DNS snapshots at $t=102.5,\,105.0,\,107.5,\,110.0$ (left to right), with forcing being strongest at $105.0$.}
+ \end{center}
+\end{figure}
+
+
+The figure above shows the vorticity field during one forcing cycle. When the forcing is weak, the flow is dominated by larger eddies and may be less dependent to subgrid-scale process (SGS) parameterization; when the forcing is active, SGS processes may be mostly unresolved in the shear zone; there are also regimes where eddies are partially resolved so they are more like the gray zones of NWP. In any case, this forcing seems to be a better choice than having a laminar flow or fully turbulence flow for being an analogy of weather forecast. 
+
+
+
+\section*{Subgrid-Scale (SGS) Processes}
+
+SGS processes refer to the dynamics and physics not resolved by a numerical model. In this project, we first run our model at very high resolution on a $1024\times1024$ grid. This direct numerical simulation (DNS) is referenced as the ``truth'' and we use Equation (1) to represent it. The governing equation of the numerical solver on the coarse ($64\times64$) grid mesh can be written as
+\begin{equation}
+ \frac{\partial \overline{\zeta}}{\partial t} + J(\overline{\psi}, \overline{\zeta}) = -\nu \nabla^4 \overline{\zeta} + F(\overline{\psi} - \overline{\psi}_0) + T
+\end{equation}
+where the overline denotes interpolation of the DNS data from high-resolution to low-resolution grid mesh (by area averaging). The term $T$ is referred as turbulence and represents the discrepancy between the DNS and coarse-resolution solver,
+\begin{equation}
+ T = \left[\overline{J(\psi,\zeta)} - J(\overline{\psi}, \overline{\zeta}) \right] + 
+     \left[\overline{F(\psi-\psi_0)} - F(\overline{\psi}-\overline{\psi}_0) \right]
+\end{equation}
+The effect of the implicit diffusion (high-wavenumber filtering) is not included in the expression but should aware of when it is present.
+
+Here we can see that we are not only facing the parameterization of turbulence actually. The term in Equation (6) related to advection is the usual definition of SGS turbulence in a numerical model. The second term related to forcing is more analogous to radiation in the atmosphere, which is affected by the distribution of temperature, water vapor, and clouds. It appears here because the forcing in the coarse-grid model is nudging the flow towards a smoothed initial field ($\overline{\psi}_0$). The weakened/misrepresented shear can affect the growth of small-scale eddies, which later interact with larger eddies. Thus when the forcing term is active, the parameterization of $T$ becomes very challenging, because true shear zone (one $\Delta y$ wide) is poorly resolved.
+
+% To some extent we know the physical principles governing $T$. The problem is that we do not want to use them (DNS resolution) because of the computational cost. The is the reason why we want to parameterize SGS processes as function of the resolved flow ($\overline{\psi}$ and/or $\overline{\zeta}$).
+% 
+% \section{Questions to Investigate}
+% 
+% We have produced the DNS dataset and used them as initial conditions for the coarse-grid solver. Denote the area-averaged DNS vorticity as $\overline{\zeta}(t)$, and the prediction by the coarse-grid model initiated at time $t_0$ as $\hat{\overline{\zeta}}(t_0, t)$. A simple estimate of the SGS term is
+% \begin{equation}
+%  T(t_0,t) = \frac{\hat{\overline{\zeta}}(t_0, t) - \overline{\zeta}(t)}{t-t_0}
+% \end{equation}
+% 
+% There are a few questions we can address with this simple estimation.
+% 
+% \begin{itemize}[leftmargin=3.1em]
+%  \item[a.] How does the SGS tendency term depends on the forcing cycle? Is it larger or smaller when the forcing is active/inactive?
+%  \item[b.] How does error growth depends on the forcing cycle? Here error growth can be measured by comparing the mean squared error (MSE) in two predictions with different lead time, for example, $T(t_0, t_0+5\Delta t)$ and $ T(t_0, t_0+\Delta t)$. Are there certain periods of a cycle when the error growth rate is large while the one-step SGS tendency is small?
+%  \item[c.] When we train a machine learning model, if we weight different times and locations the same, will the trained model underperform for the periods with small SGS tendency but potentially large error growth rate?
+%  \item[d.] If necessary, can (time or location) attention-based models improve performance? 
+%   
+% \end{itemize}
+
+
+
+
+
+
+
+
+
+
+\end{document}          
