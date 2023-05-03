@@ -1,4 +1,7 @@
 # BVEX
+Code for the paper 
+> Qu, Y., and X. Shi, 2023: Can a Machine Learning–Enabled Numerical Model Help Extend Effective Forecast Range through Consistently Trained Subgrid-Scale Models?. Artif. Intell. Earth Syst., 2, e220050, https://doi.org/10.1175/AIES-D-22-0050.1.
+
 Barotropicl Vorticity Equation in JAX (BVEX)
 
 This project comprises a barotropic vorticity model coded with JAX and machine learning examples. 
